@@ -66,7 +66,7 @@ Follow these steps to run the entire Techzu POS & Central HQ system locally on y
 Clone the monorepo and install all workspace packages:
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/codernex/pos_techzu
 cd pos_techzu
 pnpm install
 ```
