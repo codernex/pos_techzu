@@ -1,0 +1,133 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Company {
+  id        String     @id @default(uuid())
+  name      String
+  code      String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  outlets   Outlet[]
+  menuItems MenuItem[]
+}
+
+model Outlet {
+  id              String           @id @default(uuid())
+  companyId       String
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name            String
+  code            String           @unique
+  address         String?
+  phone           String?
+  receiptCounter  Int              @default(0)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  outletMenuItems OutletMenuItem[]
+  inventories     Inventory[]
+  sales           Sale[]
+
+  @@index([companyId])
+}
+
+model Category {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  menuItems   MenuItem[]
+}
+
+model MenuItem {
+  id                String           @id @default(uuid())
+  companyId         String
+  company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  categoryId        String
+  category          Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name              String
+  sku               String           @unique
+  description       String?
+  basePrice         Decimal          @db.Decimal(10, 2)
+  imageUrl          String?
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  outletAssignments OutletMenuItem[]
+  inventories       Inventory[]
+  saleItems         SaleItem[]
+
+  @@index([companyId])
+  @@index([categoryId])
+}
+
+model OutletMenuItem {
+  id          String   @id @default(uuid())
+  outletId    String
+  outlet      Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  menuItemId  String
+  menuItem    MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  customPrice Decimal? @db.Decimal(10, 2)
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([outletId, menuItemId])
+  @@index([outletId])
+  @@index([menuItemId])
+}
+
+model Inventory {
+  id                String   @id @default(uuid())
+  outletId          String
+  outlet            Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  menuItemId        String
+  menuItem          MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  quantity          Int      @default(0)
+  lowStockThreshold Int      @default(5)
+  updatedAt         DateTime @updatedAt
+
+  @@unique([outletId, menuItemId])
+  @@index([outletId])
+  @@index([menuItemId])
+}
+
+model Sale {
+  id              String     @id @default(uuid())
+  outletId        String
+  outlet          Outlet     @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  receiptNumber   String     @unique
+  receiptSequence Int
+  subtotal        Decimal    @db.Decimal(10, 2)
+  tax             Decimal    @default(0) @db.Decimal(10, 2)
+  totalAmount     Decimal    @db.Decimal(10, 2)
+  paymentMethod   String     @default("CASH")
+  cashierNote     String?
+  status          String     @default("COMPLETED")
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  items           SaleItem[]
+
+  @@index([outletId, createdAt])
+  @@index([receiptNumber])
+}
+
+model SaleItem {
+  id         String   @id @default(uuid())
+  saleId     String
+  sale       Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+  quantity   Int
+  unitPrice  Decimal  @db.Decimal(10, 2)
+  subtotal   Decimal  @db.Decimal(10, 2)
+
+  @@index([saleId])
+  @@index([menuItemId])
+}
+

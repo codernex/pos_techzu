@@ -1,0 +1,202 @@
+name: CI/CD Pipeline - Deploy to DigitalOcean Droplet
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # =========================================================================
+  # 1. CONTINUOUS INTEGRATION: TypeCheck & Build Verification
+  # =========================================================================
+  build-and-test:
+    name: Build & Verify Monorepo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install Workspace Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client (Backend)
+        run: pnpm --filter backend exec prisma generate
+
+      - name: Compile Backend TypeScript
+        run: pnpm --filter backend run build
+
+      - name: Compile & Build Admin Frontend (Vite)
+        env:
+          VITE_API_BASE: https://api-pos-techzu.codernex.dev/api/v1
+        run: pnpm --filter admin run build
+
+  # =========================================================================
+  # 2. CONTINUOUS DEPLOYMENT: SSH to DigitalOcean Droplet
+  # =========================================================================
+  deploy:
+    name: Deploy to DigitalOcean Droplet
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Deployment Secrets
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_SSH_PRIVATE_KEY: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$DO_HOST" ]; then
+            echo "::error::Missing DO_HOST secret! Please add DO_HOST in GitHub Repository Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          if [ -z "$DO_SSH_PRIVATE_KEY" ]; then
+            echo "::error::Missing DO_SSH_PRIVATE_KEY secret! Please add DO_SSH_PRIVATE_KEY in GitHub Repository Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          echo "Deployment secrets verified: OK"
+
+      - name: Copy project files to DigitalOcean Droplet
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER || 'root' }}
+          key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.DO_SSH_PORT || 22 }}
+          source: "."
+          target: "${{ secrets.DO_APP_DIR || '/var/www/pos_techzu' }}"
+          rm: false
+
+      - name: Execute Build & Deployment via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_DIR: ${{ secrets.DO_APP_DIR || '/var/www/pos_techzu' }}
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER || 'root' }}
+          key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.DO_SSH_PORT || 22 }}
+          envs: DEPLOY_DIR
+          script_stop: true
+          script: |
+            set -e
+
+            echo "========================================================"
+            echo "STARTING DEPLOYMENT TO DIGITALOCEAN DROPLET"
+            echo "Target Directory: $DEPLOY_DIR"
+            echo "========================================================"
+
+            cd "$DEPLOY_DIR"
+
+            # 1. Populate Central Root .env for Production
+            echo "Writing central production .env file..."
+            cat << 'EOF' > .env
+            # DigitalOcean Production Environment
+            # 1. Database
+            POSTGRES_USER=postgres
+            POSTGRES_PASSWORD=postgrespassword
+            POSTGRES_DB=pos_db
+            POSTGRES_PORT=5433
+            DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/pos_db?schema=public
+
+            # 2. Backend
+            BACKEND_PORT=5006
+            NODE_ENV=production
+            CORS_ORIGIN=https://pos-techzu.codernex.dev,http://pos-techzu.codernex.dev
+
+            # 3. Frontend
+            VITE_API_BASE=https://api-pos-techzu.codernex.dev/api/v1
+            ADMIN_PORT=3004
+            EOF
+
+            chmod 600 .env
+            echo "Central .env created securely (mode 0600)."
+
+            # 2. Build new container images first
+            echo "Building Docker container images..."
+            docker compose build
+
+            # 3. Re-create and restart containers with new images
+            echo "Launching updated Docker containers..."
+            docker compose up -d --no-build --remove-orphans
+
+            # 4. Wait for PostgreSQL container health
+            echo "Waiting for PostgreSQL service to report healthy..."
+            TIMEOUT=60
+            ELAPSED=0
+            until [ "$(docker inspect -f '{{.State.Health.Status}}' pos_postgres 2>/dev/null)" = "healthy" ]; do
+              if [ $ELAPSED -ge $TIMEOUT ]; then
+                echo "ERROR: PostgreSQL container failed to become healthy within ${TIMEOUT}s."
+                docker compose logs postgres
+                exit 1
+              fi
+              sleep 2
+              ELAPSED=$((ELAPSED + 2))
+              echo "Waiting for postgres... (${ELAPSED}s)"
+            done
+            echo "PostgreSQL is healthy and accepting connections."
+
+            # 5. Run Database Migrations & Seed inside Backend Container
+            echo "Running Prisma migrations..."
+            docker compose exec -T backend pnpm exec prisma migrate deploy
+            echo "Running database seed..."
+            docker compose exec -T backend pnpm exec prisma db seed
+
+            # 6. Verify Backend Health Endpoint
+            echo "Verifying backend healthcheck on port 5006..."
+            sleep 3
+            HEALTH_URL="http://localhost:5006/health"
+            curl -sf "$HEALTH_URL" || {
+              echo "ERROR: Backend healthcheck failed at $HEALTH_URL!"
+              docker compose logs backend
+              exit 1
+            }
+            echo "Backend health verified: OK"
+
+            # 7. Automate Host Nginx Reverse Proxy & SSL Certificates
+            echo "Automating Host Nginx reverse proxy & Let's Encrypt SSL..."
+            chmod +x deploy/scripts/setup-nginx.sh
+            bash deploy/scripts/setup-nginx.sh
+
+            # 8. Prune dangling Docker images to preserve droplet disk space
+            echo "Cleaning up dangling docker images..."
+            docker image prune -f
+
+            echo "========================================================"
+            echo "DEPLOYMENT & NGINX PROXY COMPLETED SUCCESSFULLY!"
+            echo "Frontend Portal:  https://pos-techzu.codernex.dev"
+            echo "Backend REST API: https://api-pos-techzu.codernex.dev/api/v1"
+            echo "Direct Containers: Admin :3004 | API :5006"
+            echo "========================================================"
+

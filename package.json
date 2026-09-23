@@ -1,0 +1,24 @@
+{
+  "name": "pos_techzu",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "check-types": "turbo run check-types",
+    "db:migrate": "pnpm --filter backend run db:migrate",
+    "db:migrate:deploy": "pnpm --filter backend run migrate:deploy",
+    "db:seed": "pnpm --filter backend run db:seed",
+    "db:generate": "pnpm --filter backend run db:generate"
+  },
+  "devDependencies": {
+    "prettier": "3.9.6",
+    "turbo": "^2.11.2",
+    "typescript": "7.0.2"
+  },
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=24"
+  }
+}
