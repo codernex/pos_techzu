@@ -129,60 +129,74 @@ export const OutletInventory: FC<OutletInventoryProps> = ({ outlet }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
-              {filteredItems.map((item) => {
-                const isOutOfStock = item.quantity <= 0;
-                const isLow = item.quantity <= item.lowStockThreshold;
-
-                return (
-                  <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <span className="font-bold text-slate-900 block">{item.name}</span>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-xs font-bold text-slate-500">
-                      {item.sku}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="text-xs px-2 py-0.5 bg-slate-100 font-medium text-slate-700 rounded">
-                        {item.category?.name || 'Category'}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 font-black text-slate-900">
-                      {formatCurrency(item.effectivePrice)}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="font-black text-base text-slate-900">
-                        {item.quantity}
-                      </span>
-                      <span className="text-xs text-slate-400 ml-1">units</span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      {isOutOfStock ? (
-                        <span className="inline-flex items-center space-x-1 text-xs font-bold text-red-700 bg-red-100 px-2.5 py-0.5 rounded-full">
-                          <span>Out of Stock (0)</span>
-                        </span>
-                      ) : isLow ? (
-                        <span className="inline-flex items-center space-x-1 text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full">
-                          <AlertTriangle className="w-3 h-3" />
-                          <span>Low Stock ({item.quantity})</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center space-x-1 text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full">
-                          <span>Healthy</span>
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <button
-                        onClick={() => setActiveItem(item)}
-                        className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 rounded-xl text-xs font-bold transition-all shadow-sm"
-                      >
-                        <PlusCircle className="w-3.5 h-3.5" />
-                        <span>Restock</span>
-                      </button>
-                    </td>
+              {loading ? (
+                Array.from({ length: 5 }).map((_, idx) => (
+                  <tr key={idx} className="animate-pulse">
+                    <td className="py-3.5 px-4"><div className="w-32 h-4 bg-slate-200 rounded" /></td>
+                    <td className="py-3.5 px-4"><div className="w-16 h-4 bg-slate-200 rounded" /></td>
+                    <td className="py-3.5 px-4"><div className="w-20 h-5 bg-slate-200 rounded-full" /></td>
+                    <td className="py-3.5 px-4"><div className="w-16 h-4 bg-slate-200 rounded" /></td>
+                    <td className="py-3.5 px-4"><div className="w-14 h-5 bg-slate-200 rounded" /></td>
+                    <td className="py-3.5 px-4"><div className="w-20 h-5 bg-slate-200 rounded-full" /></td>
+                    <td className="py-3.5 px-4 text-right"><div className="w-20 h-7 bg-slate-200 rounded-xl ml-auto" /></td>
                   </tr>
-                );
-              })}
+                ))
+              ) : (
+                filteredItems.map((item) => {
+                  const isOutOfStock = item.quantity <= 0;
+                  const isLow = item.quantity <= item.lowStockThreshold;
+
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-3.5 px-4">
+                        <span className="font-bold text-slate-900 block">{item.name}</span>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-xs font-bold text-slate-500">
+                        {item.sku}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="text-xs px-2 py-0.5 bg-slate-100 font-medium text-slate-700 rounded">
+                          {item.category?.name || 'Category'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 font-black text-slate-900">
+                        {formatCurrency(item.effectivePrice)}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="font-black text-base text-slate-900">
+                          {item.quantity}
+                        </span>
+                        <span className="text-xs text-slate-400 ml-1">units</span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        {isOutOfStock ? (
+                          <span className="inline-flex items-center space-x-1 text-xs font-bold text-red-700 bg-red-100 px-2.5 py-0.5 rounded-full">
+                            <span>Out of Stock (0)</span>
+                          </span>
+                        ) : isLow ? (
+                          <span className="inline-flex items-center space-x-1 text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full">
+                            <AlertTriangle className="w-3 h-3" />
+                            <span>Low Stock ({item.quantity})</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center space-x-1 text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full">
+                            <span>Healthy</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <button
+                          onClick={() => setActiveItem(item)}
+                          className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 rounded-xl text-xs font-bold transition-all shadow-sm"
+                        >
+                          <PlusCircle className="w-3.5 h-3.5" />
+                          <span>Restock</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
 
               {filteredItems.length === 0 && !loading && (
                 <tr>

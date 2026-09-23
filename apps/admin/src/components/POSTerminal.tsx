@@ -242,9 +242,27 @@ export const POSTerminal: FC<POSTerminalProps> = ({ outlet }) => {
 
         {/* Items Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredItems.map((item) => {
-            const isOutOfStock = item.stock <= 0;
-            const cartQty = cart.find((c) => c.menuItemId === item.menuItemId)?.quantity || 0;
+          {loading ? (
+            Array.from({ length: 8 }).map((_, idx) => (
+              <div
+                key={idx}
+                className="bg-white rounded-2xl border border-slate-200 p-3 flex flex-col justify-between animate-pulse"
+              >
+                <div className="aspect-video rounded-xl bg-slate-200 mb-2" />
+                <div className="space-y-1.5 mb-3">
+                  <div className="w-3/4 h-3.5 bg-slate-200 rounded" />
+                  <div className="w-1/2 h-2.5 bg-slate-100 rounded" />
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <div className="w-16 h-4 bg-slate-200 rounded" />
+                  <div className="w-7 h-7 bg-slate-200 rounded-lg" />
+                </div>
+              </div>
+            ))
+          ) : (
+            filteredItems.map((item) => {
+              const isOutOfStock = item.stock <= 0;
+              const cartQty = cart.find((c) => c.menuItemId === item.menuItemId)?.quantity || 0;
 
             return (
               <div
@@ -322,7 +340,7 @@ export const POSTerminal: FC<POSTerminalProps> = ({ outlet }) => {
                 </div>
               </div>
             );
-          })}
+          }))}
 
           {filteredItems.length === 0 && !loading && (
             <div className="col-span-full py-16 text-center text-slate-400 text-sm bg-white rounded-2xl border border-slate-200">

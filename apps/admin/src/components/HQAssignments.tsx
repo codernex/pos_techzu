@@ -23,11 +23,12 @@ export const HQAssignments: FC<HQAssignmentsProps> = ({
 }) => {
   const targetOutlet = selectedOutlet || outlets[0];
 
-  const { data: masterItems = [] } = useGetMenuItemsQuery({ isActive: true });
-  const { data: assignedItems = [] } = useGetOutletMenuQuery(
+  const { data: masterItems = [], isLoading: masterLoading } = useGetMenuItemsQuery({ isActive: true });
+  const { data: assignedItems = [], isLoading: assignedLoading } = useGetOutletMenuQuery(
     { outletId: targetOutlet?.id || '' },
     { skip: !targetOutlet?.id }
   );
+  const loading = masterLoading || assignedLoading;
 
   const [assignMenuItem] = useAssignMenuItemMutation();
   const [unassignMenuItem] = useUnassignMenuItemMutation();
@@ -192,7 +193,26 @@ export const HQAssignments: FC<HQAssignmentsProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
-              {masterItems.map((item) => {
+              {loading ? (
+                Array.from({ length: 5 }).map((_, idx) => (
+                  <tr key={idx} className="animate-pulse">
+                    <td className="py-4 px-4 text-center"><div className="w-4 h-4 bg-slate-200 rounded mx-auto" /></td>
+                    <td className="py-4 px-4">
+                      <div className="space-y-1">
+                        <div className="w-32 h-4 bg-slate-200 rounded" />
+                        <div className="w-16 h-3 bg-slate-100 rounded" />
+                      </div>
+                    </td>
+                    <td className="py-4 px-4"><div className="w-16 h-4 bg-slate-200 rounded" /></td>
+                    <td className="py-4 px-4"><div className="w-16 h-4 bg-slate-200 rounded" /></td>
+                    <td className="py-4 px-4"><div className="w-24 h-8 bg-slate-200 rounded-lg" /></td>
+                    <td className="py-4 px-4"><div className="w-16 h-4 bg-slate-200 rounded" /></td>
+                    <td className="py-4 px-4"><div className="w-16 h-5 bg-slate-200 rounded-full" /></td>
+                    <td className="py-4 px-4 text-right"><div className="w-16 h-7 bg-slate-200 rounded ml-auto" /></td>
+                  </tr>
+                ))
+              ) : (
+                masterItems.map((item) => {
                 const assigned = assignedItemMap.get(item.id);
                 const isAssigned = !!assigned;
                 const isSaving = savingId === item.id;
@@ -308,7 +328,7 @@ export const HQAssignments: FC<HQAssignmentsProps> = ({
                     </td>
                   </tr>
                 );
-              })}
+              }))}
             </tbody>
           </table>
         </div>
